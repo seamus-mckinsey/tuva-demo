@@ -38,26 +38,46 @@ models:
     description: |
       This model extracts all medical claims for patients with cancer diagnoses.
       It includes cost/payment information and care setting classification.
-      tests:
-        - dbt_utils.unique_combination_of_columns:
-            combination_of_columns:
-              - claim_id
-              - claim_line_number
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - claim_id
+            - claim_line_number
     columns:
       - name: claim_id
         description: Unique identifier for the claim
         tests:
           - not_null
+      - name: claim_line_number
+        description: Line number within the claim
       - name: person_id
         description: Unique identifier for the person
         tests:
           - not_null
-      - name: paid_amount
-        description: Amount paid by the insurance plan
+      - name: bill_type_description
+        description: Description of the bill type code
+      - name: place_of_service_description
+        description: Description of where the service was performed
+      - name: revenue_center_description
+        description: Description of the revenue center code
       - name: allowed_amount
         description: Total allowed amount for the service
+      - name: charge_amount
+        description: Total billed charges for the service
+      - name: paid_amount
+        description: Amount paid by the insurance plan
+      - name: coinsurance_amount
+        description: Coinsurance amount paid by patient
+      - name: copayment_amount
+        description: Copayment amount paid by patient
+      - name: deductible_amount
+        description: Deductible amount paid by patient
       - name: care_setting
         description: Classified care setting (Inpatient, ER, Outpatient, etc.)
+      - name: claim_start_date
+        description: Start date of the claim service period
+      - name: claim_end_date
+        description: End date of the claim service period
 
   # intermediate models
   - name: int_oncology_cohort_identification
@@ -70,14 +90,40 @@ models:
         tests:
           - unique
           - not_null
+      - name: first_name
+        description: Patient's first name
+      - name: last_name
+        description: Patient's last name
+      - name: birth_date
+        description: Patient's date of birth
+      - name: death_date
+        description: Patient's date of death (null if alive)
+      - name: gender
+        description: Patient's gender
+      - name: race
+        description: Patient's race
+      - name: city
+        description: Patient's city of residence
+      - name: state
+        description: Patient's state of residence
+      - name: zip_code
+        description: Patient's ZIP code
       - name: first_cancer_date
         description: Date of first cancer diagnosis
       - name: most_recent_cancer_date
         description: Date of most recent cancer diagnosis
+      - name: distinct_cancer_codes
+        description: Count of distinct ICD-10 cancer diagnosis codes
+      - name: total_cancer_diagnoses
+        description: Total number of cancer diagnoses recorded
       - name: primary_cancer_type
         description: Most frequently occurring cancer type for this patient
       - name: has_active_cancer
         description: Boolean indicating if patient has active (unresolved or recently resolved) cancer
+      - name: last_resolution_date
+        description: Date of most recent cancer condition resolution
+      - name: is_deceased
+        description: Boolean indicating if patient is deceased
       - name: age_years
         description: Patient age in years as of today
         tests:
@@ -85,6 +131,8 @@ models:
               expression: ">= 0 and age_years <= 120"
       - name: age_group
         description: Age group classification (e.g., 'Pediatric (<18)', 'Middle Age (40-54)')
+      - name: cohort_run_date
+        description: Date when this cohort was identified (current_date)
   - name: int_oncology_patient_segmentation
     description: |
       Segments cancer patients by cancer type, spend bucket, age group, and risk category.
@@ -95,27 +143,71 @@ models:
         tests:
           - unique
           - not_null
-      - name: primary_cancer_type
-        description: Primary cancer type classification
-      - name: spend_bucket
-        description: Categorized total spend (e.g., 'Low Spend (<$10K)', 'High Spend ($50K-$100K)')
+      - name: first_name
+        description: Patient's first name
+      - name: last_name
+        description: Patient's last name
+      - name: gender
+        description: Patient's gender
+      - name: race
+        description: Patient's race
+      - name: state
+        description: Patient's state of residence
+      - name: zip_code
+        description: Patient's ZIP code
+      - name: age_years
+        description: Patient age in years
       - name: age_group
         description: Age group classification (e.g., 'Middle Age (40-54)')
-      - name: risk_category
-        description: Risk stratification (High Risk, Medium-High Risk, Medium Risk, Lower Risk)
+      - name: is_deceased
+        description: Boolean indicating if patient is deceased
+      - name: primary_cancer_type
+        description: Primary cancer type classification
+      - name: all_cancer_types
+        description: Comma-separated list of all cancer types patient has been diagnosed with
+      - name: cancer_type_count
+        description: Number of distinct cancer types patient has
+      - name: has_active_cancer
+        description: Boolean indicating if patient has active cancer
+      - name: first_cancer_date
+        description: Date of first cancer diagnosis
+      - name: most_recent_cancer_date
+        description: Date of most recent cancer diagnosis
+      - name: distinct_cancer_codes
+        description: Count of distinct ICD-10 cancer diagnosis codes
+      - name: total_cancer_diagnoses
+        description: Total number of cancer diagnoses recorded
       - name: total_paid_amount
         description: Total amount paid across all claims
+      - name: total_allowed_amount
+        description: Total allowed amount across all claims
+      - name: spend_bucket
+        description: Categorized total spend (e.g., 'Low Spend (<$10K)', 'High Spend ($50K-$100K)')
+      - name: spend_bucket_rank
+        description: Numeric ranking of spend bucket (1=lowest, 5=highest)
+      - name: total_claim_count
+        description: Total number of claims for this patient
+      - name: total_claim_line_count
+        description: Total number of claim lines for this patient
+      - name: risk_category
+        description: Risk stratification (High Risk, Medium-High Risk, Medium Risk, Lower Risk)
+      - name: cohort_run_date
+        description: Date when cohort was identified
+      - name: first_claim_date
+        description: Date of first claim
+      - name: last_claim_date
+        description: Date of last claim
 
   # mart models
   - name: mart_oncology_cost_by_care_setting
     description: |
       Cost profiling by care setting for each cancer patient.
       Shows where healthcare dollars are being spent(inpatient, ER, outpatient, etc).
-      tests:
-        - dbt_utils.unique_combination_of_columns:
-            combination_of_columns:
-              - person_id
-              - care_setting
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - person_id
+            - care_setting
     columns:
       - name: person_id
         description: Unique identifier for the person
@@ -123,9 +215,45 @@ models:
           - not_null
       - name: care_setting
         description: Care setting category
+      - name: primary_cancer_type
+        description: Patient's primary cancer type
+      - name: age_group
+        description: Patient's age group classification
+      - name: spend_bucket
+        description: Patient's total spend bucket
+      - name: risk_category
+        description: Patient's risk category
+      - name: has_active_cancer
+        description: Whether patient has active cancer
       - name: total_paid
         description: Total paid amount for this care setting
+      - name: total_allowed
+        description: Total allowed amount for this care setting
+      - name: total_charges
+        description: Total billed charges for this care setting
+      - name: total_coinsurance
+        description: Total coinsurance paid for this care setting
+      - name: total_copay
+        description: Total copayments for this care setting
+      - name: total_deductible
+        description: Total deductible paid for this care setting
       - name: claim_count
         description: Number of claims in this care setting
+      - name: claim_line_count
+        description: Number of claim lines in this care setting
+      - name: avg_paid_per_line
+        description: Average paid amount per claim line
+      - name: avg_paid_per_claim
+        description: Average paid amount per claim
       - name: pct_of_person_spend
         description: Percentage of patient's total spend in this care setting
+      - name: pct_of_person_claims
+        description: Percentage of patient's total claims in this care setting
+      - name: person_total_paid
+        description: Patient's total paid amount across all care settings
+      - name: person_total_allowed
+        description: Patient's total allowed amount across all care settings
+      - name: first_service_date
+        description: Date of first service in this care setting
+      - name: last_service_date
+        description: Date of last service in this care setting
