@@ -1,0 +1,110 @@
+version: 2
+
+sources:
+  - name: input_layer
+    description: Source tables from the Tuva input layer
+    tables:
+      - name: medical_claim
+        description: Medical claims data
+
+models:
+  # staging models
+  - name: stg_oncology_conditions
+    description: |
+      All cancer related conditions filtered using ICD-10 codes. Includes cancer type classification based on diagnosis codes.
+      Source: https://www.icd10data.com/ICD10CM/Codes/C00-D49
+    columns:
+      - name: person_id
+        description: Unique identifier for the person
+      - name: status
+        description: Status of the condition (e.g., active, resolved)
+      - name: normalized_code
+        description: Standardized ICD-10 diagnosis code
+      - name: normalized_description
+        description: Description of the diagnosis
+      - name: condition_rank
+        description: Ranking of the condition (e.g., primary, secondary)
+      - name: cancer_type
+        description: Classified cancer type based on ICD-10 code range
+      - name: recorded_date
+        description: Date when the condition was recorded
+      - name: onset_date
+        description: Date when the condition began
+      - name: resolved_date
+        description: Date when the condition was resolved
+  - name: stg_oncology_claims
+    description: |
+      This model extracts all medical claims for patients with cancer diagnoses.
+      It includes cost/payment information and care setting classification.
+    columns:
+      - name: claim_id
+        description: Unique identifier for the claim
+      - name: person_id
+        description: Unique identifier for the person
+      - name: paid_amount
+        description: Amount paid by the insurance plan
+      - name: allowed_amount
+        description: Total allowed amount for the service
+      - name: care_setting
+        description: Classified care setting (Inpatient, ER, Outpatient, etc.)
+
+  # intermediate models
+  - name: int_oncology_cohort_identification
+    description: |
+      Identifies all patients with cancer diagnoses and determines active cancer status.
+      Provides patient level summary of cancer history and current status.
+    columns:
+      - name: person_id
+        description: Unique identifier for the person
+        tests:
+          - unique
+          - not_null
+      - name: first_cancer_date
+        description: Date of first cancer diagnosis
+      - name: most_recent_cancer_date
+        description: Date of most recent cancer diagnosis
+      - name: primary_cancer_type
+        description: Most frequently occurring cancer type for this patient
+      - name: has_active_cancer
+        description: Boolean indicating if patient has active (unresolved or recently resolved) cancer
+      - name: age_years
+        description: Patient age in years as of today
+      - name: age_group
+        description: Age group classification (e.g., 'Pediatric (<18)', 'Middle Age (40-54)')
+  - name: int_oncology_patient_segmentation
+    description: |
+      Segments cancer patients by cancer type, spend bucket, age group, and risk category.
+      Combines clinical and financial data for comprehensive patient profiling.
+    columns:
+      - name: person_id
+        description: Unique identifier for the person
+        tests:
+          - unique
+          - not_null
+      - name: primary_cancer_type
+        description: Primary cancer type classification
+      - name: spend_bucket
+        description: Categorized total spend (e.g., 'Low Spend (<$10K)', 'High Spend ($50K-$100K)')
+      - name: age_group
+        description: Age group classification (e.g., 'Middle Age (40-54)')
+      - name: risk_category
+        description: Risk stratification (High Risk, Medium-High Risk, Medium Risk, Lower Risk)
+      - name: total_paid_amount
+        description: Total amount paid across all claims
+
+  # mart models
+  - name: mart_oncology_cost_by_care_setting
+    description: |
+      Cost profiling by care setting for each cancer patient.
+      Shows where healthcare dollars are being spent(inpatient, ER, outpatient, etc).
+    columns:
+      - name: person_id
+        description: Unique identifier for the person
+      - name: care_setting
+        description: Care setting category
+      - name: total_paid
+        description: Total paid amount for this care setting
+      - name: claim_count
+        description: Number of claims in this care setting
+      - name: pct_of_person_spend
+        description: Percentage of patient's total spend in this care setting
