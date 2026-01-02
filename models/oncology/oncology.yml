@@ -16,6 +16,8 @@ models:
     columns:
       - name: person_id
         description: Unique identifier for the person
+        tests:
+          - not_null
       - name: status
         description: Status of the condition (e.g., active, resolved)
       - name: normalized_code
@@ -36,11 +38,20 @@ models:
     description: |
       This model extracts all medical claims for patients with cancer diagnoses.
       It includes cost/payment information and care setting classification.
+      tests:
+        - dbt_utils.unique_combination_of_columns:
+            combination_of_columns:
+              - claim_id
+              - claim_line_number
     columns:
       - name: claim_id
         description: Unique identifier for the claim
+        tests:
+          - not_null
       - name: person_id
         description: Unique identifier for the person
+        tests:
+          - not_null
       - name: paid_amount
         description: Amount paid by the insurance plan
       - name: allowed_amount
@@ -69,6 +80,9 @@ models:
         description: Boolean indicating if patient has active (unresolved or recently resolved) cancer
       - name: age_years
         description: Patient age in years as of today
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0 and age_years <= 120"
       - name: age_group
         description: Age group classification (e.g., 'Pediatric (<18)', 'Middle Age (40-54)')
   - name: int_oncology_patient_segmentation
@@ -97,9 +111,16 @@ models:
     description: |
       Cost profiling by care setting for each cancer patient.
       Shows where healthcare dollars are being spent(inpatient, ER, outpatient, etc).
+      tests:
+        - dbt_utils.unique_combination_of_columns:
+            combination_of_columns:
+              - person_id
+              - care_setting
     columns:
       - name: person_id
         description: Unique identifier for the person
+        tests:
+          - not_null
       - name: care_setting
         description: Care setting category
       - name: total_paid
